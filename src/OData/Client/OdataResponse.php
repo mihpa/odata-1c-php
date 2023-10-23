@@ -1,6 +1,6 @@
 <?php
 
-namespace OData\Client\Exception;
+namespace OData\Client;
 
 use Psr\Http\Message\ResponseInterface;
 

@@ -14,32 +14,72 @@ $ composer require mihpa/odata-1c-php
 
 ### Инициализация
 ```php
+use OData\Client\OdataConnection;
+
+$client = new OdataConnection('http://<имя хоста OData>/<имя базы данных>/odata/standard.odata/');
+$client->setAuth('<имя пользователя>', '<пароль>');
+$client->setProxy('<имя хоста прокси>', '<номер порта>');
 ```
 
 ### Получение информации
 ```php
+$customer = $client->{'Справочник/Контрагенты'}->get('9ffb357b-8431-11ec-8105-005056baf506');
 ```
 
 ### Использование фильтра
 ```php
+$documents = $client->{'Документ/ПоступлениеТоваровУслуг'}
+    ->select([
+        'Ref_Key',
+        'DataVersion',
+        'Number',
+        'Date',
+        'Posted',
+        'ВидОперации',
+        'Товары/Сумма',
+        'Товары/СуммаНДС',
+        'Услуги/Сумма',
+        'Контрагент/Ref_Key',
+        'Контрагент/Description',
+        'ДоговорКонтрагента/Номер',
+        'ДоговорКонтрагента/Дата',
+    ])
+    ->expand([
+        'Контрагент',
+        'ДоговорКонтрагента',
+    ])
+    ->filter('not (DeletionMark)')
+    ->orderby('Date', 'desc')
+    ->get();
 ```
 
 ### Создать
 ```php
+$customer = $client->{'Справочник/Контрагенты'}->create([
+    'Description'=>'Тестовый контрагент',
+]);
+
+echo $customer->getId();
 ```
 
 ### Изменить
 ```php
+$customer = $client->{'Справочник/Контрагенты'}->update('c70666f7-ae3a-11e5-80ce-005056baf506', [
+    'Description'=>'Изменённый контрагент',
+]);
 ```
 
 ### Пометить на удаление
 ```php
+$client->{'Справочник/Контрагенты'}->delete('c70666f7-ae3a-11e5-80ce-005056baf506');
 ```
 
 ### Провести
 ```php
+$client->{'Документ/АктВыполненныхРабот'}->id('08e15d09-d48e-11ed-a84a-0050569ad97e')->post();
 ```
 
 ### Отменить проведение
 ```php
+$client->{'Документ/АктВыполненныхРабот'}->id('08e15d09-d48e-11ed-a84a-0050569ad97e')->unpost();
 ```

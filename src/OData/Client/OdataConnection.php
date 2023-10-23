@@ -5,9 +5,6 @@ namespace OData\Client;
 use ArrayAccess;
 use Exception;
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\ClientException;
-use OData\Client\Exception\GuidValidationException;
-use OData\Client\Exception\OdataResponse;
 
 class OdataConnection implements ArrayAccess
 {
@@ -24,58 +21,12 @@ class OdataConnection implements ArrayAccess
     /**
      * @var string
      */
-    protected string $url;
+    private string $url;
 
     /**
      * @var array
      */
     private array $options;
-
-    /**
-     * @var array
-     */
-    private array $querySelect = [];
-
-    /**
-     * @var array
-     */
-    private array $queryExpand = [];
-
-    /**
-     * @var array
-     */
-    private array $queryFilter = [];
-
-    /**
-     * @var array
-     */
-    private array $queryOrder = [];
-
-    /**
-     * @var bool
-     */
-    private bool $queryMetadata = false;
-
-    /**
-     * Код ответа интерфейса OData
-     *
-     * @var int
-     */
-    public int $responseCode;
-
-    /**
-     * Детализация ответа интерфейса OData
-     *
-     * @var string
-     */
-    public string $responseReason;
-
-    /**
-     * Ответ интерфейса OData
-     *
-     * @var OdataResponse|null
-     */
-    private ?OdataResponse $response;
 
     /**
      * @param string $url
@@ -85,15 +36,18 @@ class OdataConnection implements ArrayAccess
     {
         $this->client = new Client();
 
+        if (!empty($url) && !str_ends_with($url, '/')) {
+            $url .= '/';
+        }
         $this->url = $url;
-        $this->options = array_replace_recursive(
+        $this->options = array_merge_recursive(
+            $options,
             [
                 'headers' => [
                     'Accept' => 'application/json',
                 ],
                 'timeout' => 300
-            ],
-            $options
+            ]
         );
     }
 
@@ -105,14 +59,14 @@ class OdataConnection implements ArrayAccess
      */
     public function setAuth(string $username, string $password)
     {
-        $this->options = array_replace_recursive(
+        $this->options = array_merge_recursive(
+            $this->options,
             [
                 'auth' => [
                     $username,
                     $password
                 ]
-            ],
-            $this->options
+            ]
         );
     }
 
@@ -125,15 +79,15 @@ class OdataConnection implements ArrayAccess
      */
     public function setProxy(string $proxyHost, string $proxyPort, ?bool $isSecured = false)
     {
-        $this->options = array_replace_recursive(
+        $this->options = array_merge_recursive(
+            $this->options,
             [
                 'proxy' => sprintf(
                     ($isSecured ? 'https' : 'http') . '://%s:%s',
                     $proxyHost,
                     $proxyPort
                 )
-            ],
-            $this->options
+            ]
         );
     }
 
@@ -144,229 +98,23 @@ class OdataConnection implements ArrayAccess
      */
     public function setTimeout(int $timeout)
     {
-        $this->options = array_replace_recursive(
+        $this->options = array_merge_recursive(
+            $this->options,
             [
                 'timeout' => $timeout
-            ],
-            $this->options
+            ]
         );
     }
 
-    /**
-     * Признак запроса метаданных
-     */
-    public function metadata()
+    public function __get($name)
     {
-        $this->queryMetadata = true;
-    }
-
-    /**
-     * Перечень свойств сущности
-     *
-     * @param array $data
-     * @return OdataConnection
-     */
-    public function select(array $data)
-    {
-        $this->querySelect = array_replace_recursive($data, $this->querySelect);
-        return $this;
-    }
-
-    /**
-     * Данные связанных сущностей
-     *
-     * @param array $data
-     * @return OdataConnection
-     */
-    public function expand(array $data)
-    {
-        $this->queryExpand = array_replace_recursive($data, $this->queryExpand);
-        return $this;
-    }
-
-    /**
-     * Фильтр сущностей
-     *
-     * @param array $data
-     * @return OdataConnection
-     */
-    public function filter(array $data)
-    {
-        $this->queryFilter = array_replace_recursive($data, $this->queryFilter);
-        return $this;
-    }
-
-    /**
-     * Сортировка сущностей
-     *
-     * @param array $data
-     * @return OdataConnection
-     */
-    public function order(array $data)
-    {
-        $this->queryOrder = array_replace_recursive($data, $this->queryOrder);
-        return $this;
-    }
-
-    /**
-     * @param int $quantity
-     * @return OdataConnection
-     */
-    public function top(int $quantity)
-    {
-        $this->options['query']['$top'] = $quantity;
-        return $this;
-    }
-
-    /**
-     * Получение свойств сущности
-     *
-     * @param string $object
-     * @param string|null $guid
-     * @return array|null
-     * @throws GuidValidationException
-     */
-    public function get(string $object, string $guid = null)
-    {
-        if (!Guid::is_valid($guid)) {
-            throw new GuidValidationException();
+        if (in_array($name, ['client', 'url', 'options'])) {
+            return $this->{$name};
+        } elseif (!isset($this->container[$name])) {
+            $this->container[$name] = new OdataContainer($this, $name);
         }
 
-        $request = $object;
-        if ($guid) {
-            $request .= sprintf('(guid\'%s\')', $guid);
-        }
-
-        if ($this->request('GET', $request)) {
-            return $this->response->values();
-        }
-
-        return null;
-    }
-
-    /**
-     * Создание сущности
-     *
-     * @param string $object
-     * @param array $data
-     * @return bool
-     * @throws GuidValidationException
-     */
-    public function create(string $object, array $data): bool
-    {
-        return $this->update($object, null, $data);
-    }
-
-    /**
-     * Изменение сущности
-     *
-     * @param string $object
-     * @param string $guid
-     * @param array $data
-     * @return bool
-     * @throws GuidValidationException
-     */
-    public function update(string $object, string $guid, array $data): bool
-    {
-        if (!Guid::is_valid($guid)) {
-            throw new GuidValidationException();
-        }
-
-        $method = $guid ? 'PATCH' : 'POST';
-
-        $request = $object;
-        if ($guid) {
-            $request .= sprintf('(guid\'%s\')', $guid);
-        }
-
-        return $this->request($method, $request, ['json' => $data]);
-    }
-
-    /**
-     * Удаление сущности
-     *
-     * @param string $object
-     * @param string $guid
-     * @return bool
-     * @throws GuidValidationException
-     */
-    public function delete(string $object, string $guid): bool
-    {
-        if (!Guid::is_valid($guid)) {
-            throw new GuidValidationException();
-        }
-
-        return $this->request('DELETE', sprintf('/%s(guid\'%s\')', $object, $guid));
-    }
-
-    /**
-     * @param string $method
-     * @param string $request
-     * @param array|null $options
-     * @return bool
-     */
-    private function request(string $method, string $request, ?array $options = []): bool
-    {
-        if (!empty($options)) {
-            $options = array_replace_recursive($options, $this->options);
-        }
-
-        $format = 'application/json';
-        if (!$this->queryMetadata) {
-            $format .= ';odata=nometadata';
-            $options['query']['$format'] = $format;
-        }
-
-        $result = true;
-        try {
-            $this->response = new OdataResponse(
-                $this->client->request($method, $request, $options)
-            );
-        } catch (ClientException $e) {
-            $result = false;
-        }
-
-        return $result;
-    }
-
-    /**
-     * Код ответа интерфейса OData
-     *
-     * @return int
-     */
-    public function getResponseCode(): int
-    {
-        return $this->response?->getResponseCode();
-    }
-
-    /**
-     * Детализация ответа интерфейса OData
-     *
-     * @return string
-     */
-    public function getResponsePhrase(): string
-    {
-        return $this->response?->getResponsePhrase();
-    }
-
-    /**
-     * Код ответа OData (1С)
-     *
-     * @return int|null
-     */
-    public function getOdataErrorCode(): int|null
-    {
-        return $this->response?->getOdataErrorCode();
-    }
-
-    /**
-     * Детализация ответа OData (1С)
-     *
-     * @return string|null
-     */
-    public function getOdataErrorPhrase(): string|null
-    {
-        return $this->response?->getOdataErrorPhrase();
+        return $this->container[$name];
     }
 
     /**
@@ -376,7 +124,11 @@ class OdataConnection implements ArrayAccess
      */
     public function offsetSet($offset, $value): void
     {
-        throw new Exception('Нельзя изменить значение, доступно только чтение');
+        if (is_null($offset)) {
+            $this->container[] = $value;
+        } else {
+            $this->container[$offset] = $value;
+        }
     }
 
     /**
@@ -385,7 +137,7 @@ class OdataConnection implements ArrayAccess
      */
     public function offsetExists($offset): bool
     {
-        return !empty($this->response?->toArray()[$offset] ?? []);
+        return isset($this->container[$offset]);
     }
 
     /**
@@ -393,7 +145,9 @@ class OdataConnection implements ArrayAccess
      * @return void
      */
     public function offsetUnset($offset): void
-    { }
+    {
+        unset($this->container[$offset]);
+    }
 
     /**
      * @param $offset
@@ -401,6 +155,6 @@ class OdataConnection implements ArrayAccess
      */
     public function offsetGet($offset): mixed
     {
-        return $this->response?->toArray()[$offset] ?? null;
+        return $this->container[$offset] ?? null;
     }
 }
