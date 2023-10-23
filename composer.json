@@ -9,6 +9,9 @@
     "PHP"
   ],
   "license": "MIT",
+  "autoload": {
+    "psr-4": {"OData\\Client\\": "src/OData/Client"}
+  },
   "authors": [
     {
       "name": "Pavel Mikhailiuk",

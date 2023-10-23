@@ -71,7 +71,7 @@ class OdataConnection implements ArrayAccess
     public string $responseReason;
 
     /**
-     * Ответа интерфейса OData
+     * Ответ интерфейса OData
      *
      * @var OdataResponse|null
      */
