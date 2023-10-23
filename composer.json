@@ -1,0 +1,20 @@
+{
+  "name": "mihpa/odata-1c-php",
+  "type": "library",
+  "description": "Библиотека доступа к 1С:Предприятие 8.3 через протокол OData. Язык программирования PHP.",
+  "keywords": [
+    "1С",
+    "8.3",
+    "OData",
+    "PHP"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Pavel Mikhailiuk",
+      "email": "mihpa@liftsoft.ru"
+    }
+  ],
+  "require": {
+  }
+}
