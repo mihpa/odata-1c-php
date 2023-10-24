@@ -207,7 +207,15 @@ class OdataContainer
         }
 
         if ($this->request('GET', $request)) {
-            return $this->response->values();
+            if ($data = $this->response->values()) {
+                if (!empty($data)) {
+                    if ($guid) {
+                        return reset($data);
+                    } else {
+                        return $this->response->values();
+                    }
+                }
+            }
         }
 
         return null;
@@ -216,56 +224,58 @@ class OdataContainer
     /**
      * Создание сущности
      *
-     * @param string $object
      * @param array $data
-     * @return bool
+     * @return array|bool
      * @throws GuidValidationException
      */
-    public function create(string $object, array $data): bool
+    public function create(array $data): array|bool
     {
-        return $this->update($object, null, $data);
+        return $this->update($data);
     }
 
     /**
      * Изменение сущности
      *
-     * @param string $object
-     * @param string $guid
      * @param array $data
-     * @return bool
+     * @param string|null $guid
+     * @return array|bool
      * @throws GuidValidationException
      */
-    public function update(string $object, string $guid, array $data): bool
+    public function update(array $data, ?string $guid = null): array|bool
     {
         if (!Guid::is_valid($guid)) {
             throw new GuidValidationException();
         }
 
         $method = $guid ? 'PATCH' : 'POST';
+        $request = $this->name . ($guid ? sprintf('(guid\'%s\')', $guid) : '');
 
-        $request = $object;
-        if ($guid) {
-            $request .= sprintf('(guid\'%s\')', $guid);
+        if ($this->request($method, $request, ['json' => $data])) {
+            if (!$guid) {
+                $guid = $this->response->getLastId();
+            }
+            if ($guid) {
+                return $this->get($guid);
+            }
         }
 
-        return $this->request($method, $request, ['json' => $data]);
+        return false;
     }
 
     /**
      * Удаление сущности
      *
-     * @param string $object
      * @param string $guid
      * @return bool
      * @throws GuidValidationException
      */
-    public function delete(string $object, string $guid): bool
+    public function deletePermanently(string $guid): bool
     {
         if (!Guid::is_valid($guid)) {
             throw new GuidValidationException();
         }
 
-        return $this->request('DELETE', sprintf('/%s(guid\'%s\')', $object, $guid));
+        return $this->request('DELETE', sprintf('/%s(guid\'%s\')', $this->name, $guid));
     }
 
     /**
@@ -303,17 +313,19 @@ class OdataContainer
         }
 
         $format = 'application/json';
-        if (!$this->queryMetadata) {
+        if ($method == 'GET' && !$this->queryMetadata) {
             $format .= ';odata=nometadata';
             $options['query']['$format'] = $format;
         }
 
+        $this->response = new OdataResponse();
         $result = true;
         try {
-            $this->response = new OdataResponse(
+            $this->response->make(
                 $this->connection->client->request($method, $request, $options)
             );
         } catch (ClientException $e) {
+            $this->response->make($e->getResponse());
             $result = false;
         }
 
@@ -323,21 +335,27 @@ class OdataContainer
     /**
      * Код ответа интерфейса OData
      *
-     * @return int
+     * @return int|null
      */
-    public function getResponseCode(): int
+    public function getResponseCode(): int|null
     {
-        return $this->response?->getResponseCode();
+        if (!isset($this->response)) {
+            return null;
+        }
+        return $this->response->getResponseCode();
     }
 
     /**
      * Детализация ответа интерфейса OData
      *
-     * @return string
+     * @return string|null
      */
-    public function getResponsePhrase(): string
+    public function getResponsePhrase(): string|null
     {
-        return $this->response?->getResponsePhrase();
+        if (!isset($this->response)) {
+            return null;
+        }
+        return $this->response->getResponsePhrase();
     }
 
     /**
@@ -347,7 +365,10 @@ class OdataContainer
      */
     public function getOdataErrorCode(): int|null
     {
-        return $this->response?->getOdataErrorCode();
+        if (!isset($this->response)) {
+            return null;
+        }
+        return $this->response->getOdataErrorCode();
     }
 
     /**
@@ -357,6 +378,9 @@ class OdataContainer
      */
     public function getOdataErrorPhrase(): string|null
     {
-        return $this->response?->getOdataErrorPhrase();
+        if (!isset($this->response)) {
+            return null;
+        }
+        return $this->response->getOdataErrorPhrase();
     }
 }

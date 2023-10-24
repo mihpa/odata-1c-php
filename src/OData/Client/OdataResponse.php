@@ -7,20 +7,24 @@ use Psr\Http\Message\ResponseInterface;
 class OdataResponse
 {
     /**
-     * @var ResponseInterface
+     * @var ResponseInterface|null
      */
-    private ResponseInterface $response;
+    private ?ResponseInterface $response;
 
     /**
-     * @var array
+     * @var array|null
      */
-    private array $array;
+    private ?array $array;
 
-    public function __construct(ResponseInterface $response) {
+    public function __construct() {
+    }
+
+    public function make(ResponseInterface $response)
+    {
         $this->response = $response;
     }
 
-    public function toArray(): array
+    public function toArray(): array|null
     {
         if (empty($this->array)) {
             $this->array = json_decode($this->response->getBody(), true);
@@ -55,6 +59,18 @@ class OdataResponse
 
         if (isset($body['odata.error']['message']['value'])) {
             return $body['odata.error']['message']['value'];
+        }
+
+        return null;
+    }
+
+    public function getLastId(): string|null
+    {
+        if ($this->response->hasHeader('Location')) {
+            preg_match('/guid\'(.*?)\'/', implode(' ', $this->response->getHeader('Location')), $matches);
+            if ($matches) {
+                return $matches[1];
+            }
         }
 
         return null;
