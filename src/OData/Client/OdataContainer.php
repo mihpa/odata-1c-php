@@ -55,6 +55,11 @@ class OdataContainer
     private int $top;
 
     /**
+     * @var int
+     */
+    private int $offset;
+
+    /**
      * Ответ интерфейса OData
      *
      * @var OdataResponse|null
@@ -189,6 +194,16 @@ class OdataContainer
     }
 
     /**
+     * @param int $quantity
+     * @return OdataContainer
+     */
+    public function offset(int $quantity)
+    {
+        $this->offset = $quantity;
+        return $this;
+    }
+
+    /**
      * Получение свойств сущности
      *
      * @param string|null $guid
@@ -263,7 +278,39 @@ class OdataContainer
     }
 
     /**
-     * Удаление сущности
+     * Пометить на удаление
+     *
+     * @param string $guid
+     * @return array|bool
+     * @throws GuidValidationException
+     */
+    public function delete(string $guid): array|bool
+    {
+        if (!Guid::is_valid($guid)) {
+            throw new GuidValidationException();
+        }
+
+        return $this->update(['DeletionMark' => true], $guid);
+    }
+
+    /**
+     * Снять пометку на удаление
+     *
+     * @param string $guid
+     * @return array|bool
+     * @throws GuidValidationException
+     */
+    public function undelete(string $guid): array|bool
+    {
+        if (!Guid::is_valid($guid)) {
+            throw new GuidValidationException();
+        }
+
+        return $this->update(['DeletionMark' => false], $guid);
+    }
+
+    /**
+     * Удалить сущность навсегда
      *
      * @param string $guid
      * @return bool
@@ -276,6 +323,42 @@ class OdataContainer
         }
 
         return $this->request('DELETE', sprintf('/%s(guid\'%s\')', $this->name, $guid));
+    }
+
+    /**
+     * Провести сущность
+     *
+     * @param string $guid
+     * @param bool|null $isOperational
+     * @return bool
+     * @throws GuidValidationException
+     */
+    public function post(string $guid, ?bool $isOperational = false): bool
+    {
+        if (!Guid::is_valid($guid)) {
+            throw new GuidValidationException();
+        }
+
+        $request = sprintf('/%s(guid\'%s\')/Post', $this->name, $guid);
+        $request .= '?PostingModeOperational=' . ($isOperational ? 'true' : 'false');
+
+        return $this->request('POST', $request);
+    }
+
+    /**
+     * Отменить проведение сущности
+     *
+     * @param string $guid
+     * @return bool
+     * @throws GuidValidationException
+     */
+    public function unpost(string $guid): bool
+    {
+        if (!Guid::is_valid($guid)) {
+            throw new GuidValidationException();
+        }
+
+        return $this->request('POST', sprintf('/%s(guid\'%s\')/Unpost', $this->name, $guid));
     }
 
     /**
@@ -310,6 +393,10 @@ class OdataContainer
 
         if (!empty($this->top)) {
             $options['query']['$top'] = $this->top;
+        }
+
+        if (!empty($this->offset)) {
+            $options['query']['$skip'] = $this->offset;
         }
 
         $format = 'application/json';
