@@ -110,9 +110,11 @@ class OdataConnection implements ArrayAccess
     {
         if (in_array($name, ['client', 'url', 'options'])) {
             return $this->{$name};
-        } elseif (!isset($this->container[$name])) {
-            $this->container[$name] = new OdataContainer($this, $name);
+        } elseif (isset($this->container[$name])) {
+            unset($this->container[$name]);
         }
+
+        $this->container[$name] = new OdataContainer($this, $name);
 
         return $this->container[$name];
     }
