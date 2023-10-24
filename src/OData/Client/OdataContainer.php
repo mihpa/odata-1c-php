@@ -330,10 +330,10 @@ class OdataContainer
      *
      * @param string $guid
      * @param bool|null $isOperational
-     * @return bool
+     * @return array|bool
      * @throws GuidValidationException
      */
-    public function post(string $guid, ?bool $isOperational = false): bool
+    public function post(string $guid, ?bool $isOperational = false): array|bool
     {
         if (!Guid::is_valid($guid)) {
             throw new GuidValidationException();
@@ -342,23 +342,33 @@ class OdataContainer
         $request = sprintf('/%s(guid\'%s\')/Post', $this->name, $guid);
         $request .= '?PostingModeOperational=' . ($isOperational ? 'true' : 'false');
 
-        return $this->request('POST', $request);
+        if ($this->request('POST', $request)) {
+            return $this->get($guid);
+        }
+
+        return false;
     }
 
     /**
      * Отменить проведение сущности
      *
      * @param string $guid
-     * @return bool
+     * @return array|bool
      * @throws GuidValidationException
      */
-    public function unpost(string $guid): bool
+    public function unpost(string $guid): array|bool
     {
         if (!Guid::is_valid($guid)) {
             throw new GuidValidationException();
         }
 
-        return $this->request('POST', sprintf('/%s(guid\'%s\')/Unpost', $this->name, $guid));
+        $request = sprintf('/%s(guid\'%s\')/Unpost', $this->name, $guid);
+
+        if ($this->request('POST', $request)) {
+            return $this->get($guid);
+        }
+
+        return false;
     }
 
     /**
